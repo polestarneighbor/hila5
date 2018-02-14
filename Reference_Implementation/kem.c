@@ -210,14 +210,15 @@ static void hila5_unpack14(int32_t v[HILA5_N],
 // generate n uniform samples from the seed
 
 static void hila5_parse(int32_t v[HILA5_N],
-                        const uint8_t seed[HILA5_SEED_LEN])
+                        const uint8_t *seed,
+                        const int seed_len)
 {
     hila5_sha3_ctx_t sha3;              // init SHA3 state for SHAKE-256
     uint8_t buf[2];                     // two byte output buffer
     uint32_t x;                          // random variable
 
     hila5_shake256_init(&sha3);         // initialize the context
-    hila5_shake_update(&sha3, seed, HILA5_SEED_LEN);    // seed input
+    hila5_shake_update(&sha3, seed, seed_len);    // seed input
     hila5_shake_xof(&sha3);             // pad context to output mode
 
     // fill the vector with uniform samples

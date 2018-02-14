@@ -23,7 +23,7 @@ int		ReadHex(FILE *infile, unsigned char *A, int Length, char *str);
 void	fprintBstr(FILE *fp, char *S, unsigned char *A, unsigned long long L);
 
 int
-main()
+main(int argc, char *argv[])
 {
     char                fn_req[32], fn_rsp[32];
     FILE                *fp_req, *fp_rsp;
@@ -34,7 +34,8 @@ main()
     int                 done;
     unsigned char       pk[CRYPTO_PUBLICKEYBYTES], sk[CRYPTO_SECRETKEYBYTES];
     int                 ret_val;
-
+    char                *password = argv[1];
+    unsigned char       *pw[CRYPTO_BYTES], pw1[CRYPTO_BYTES];
     // Create the REQUEST file
     sprintf(fn_req, "PQCkemKAT_%d.req", CRYPTO_SECRETKEYBYTES);
     if ( (fp_req = fopen(fn_req, "w")) == NULL ) {

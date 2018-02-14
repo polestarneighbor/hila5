@@ -3,8 +3,8 @@
 # (Reference Implementation)
 
 BIN	= genkat_ref
-OBJS	= kem.o hila5_sha3_ref.o \
-	../KAT/src/rng.o ../KAT/src/PQCgenKAT_kem.o
+OBJS	= kem.o hila5_sha3_ref.o pake.o \
+	../KAT/src/rng.o ../KAT/src/PQCgenKAT_pake.o
 
 CC	?= gcc
 CFLAGS	+= -std=c99 -Wall -Ofast -I.
@@ -15,13 +15,14 @@ $(BIN): $(OBJS)
 	$(CC) $(LDFLAGS) -o $(BIN) $(OBJS) $(LDLIBS)
 
 test:	$(BIN)
-	./$(BIN)
-	@echo "== BEGIN KAT DIFFERENCE =="
-	@diff PQCkemKAT_1824.rsp ../KAT/PQCkemKAT_1824.rsp
-	@echo "== END KAT DIFFERENCE =="
+	@echo ""
+	./$(BIN) password password
+#	@echo "== BEGIN KAT DIFFERENCE =="
+#	@diff PQCkemKAT_1824.rsp ../KAT/PQCkemKAT_1824.rsp
+#	@echo "== END KAT DIFFERENCE =="
 
 .c.o:
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJS) $(BIN) PQCkemKAT_1824.*
+	rm -rf $(OBJS) $(BIN) PQCkemKAT_1824.* PQCpakeKAT_1824.*

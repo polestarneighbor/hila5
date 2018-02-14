@@ -11,7 +11,7 @@
 #define CRYPTO_PUBLICKEYBYTES 1824
 #define CRYPTO_BYTES 32
 #define CRYPTO_CIPHERTEXTBYTES 2012
-
+#define CRYPTO_HASHBYTES 1792
 // == Prototypes ===========================================================
 
 // Generates a keypair - pk is the public key and sk is the secret key.
@@ -26,5 +26,20 @@ int crypto_kem_enc(unsigned char *ct, unsigned char *ss,
 // sk is the private key, ss is the shared secret
 int crypto_kem_dec(unsigned char *ss, const unsigned char *ct,
     const unsigned char *sk);
+
+int crypto_pake_keypair(unsigned char *pk, unsigned char *sk,
+    unsigned char *hash, const char *pw, const int pw_len);
+
+int crypto_pake_enc(unsigned char *ct, unsigned char *secret,
+  unsigned char *pw_hash, char *k, const unsigned char *pk,
+  const char *pw, const int pw_len);
+
+int crypto_pake_dec(unsigned char *ss, char *k2, const char *k,
+  const unsigned char *ct, const unsigned char *pk, const unsigned char *sk,
+  const unsigned char *pw_hash);
+
+int crypto_pake_accept(unsigned char *ss, const char *k2,
+  const unsigned char *pk, const unsigned char *ct, const unsigned char *secret,
+  const unsigned char *pw_hash);
 
 #endif

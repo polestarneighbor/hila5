@@ -36,12 +36,12 @@ int randombytes(unsigned char *x, unsigned long long xlen);
 
 // == Rings and Number Theoratic Transforms ==================================
 
-static int32_t pow1945[2048];           // powers of g=1945 mod q
-static int pow1945_ok = 0;              // true after initialization
+int32_t pow1945[2048];           // powers of g=1945 mod q
+int pow1945_ok = 0;              // true after initialization
 
 // make sure that the pow1945[] table is initialized
 
-static void init_pow1945()
+void init_pow1945()
 {
     if (pow1945_ok)                     // nothing to do then
         return;
@@ -56,7 +56,7 @@ static void init_pow1945()
 
 // Scalar multiplication: v = c * v.
 
-static void slow_smul(int32_t v[HILA5_N], int32_t c)
+void slow_smul(int32_t v[HILA5_N], int32_t c)
 {
     for (int i = 0; i < HILA5_N; i++)
         v[i] = (c * v[i]) % HILA5_Q;
@@ -64,7 +64,7 @@ static void slow_smul(int32_t v[HILA5_N], int32_t c)
 
 // Pointwise multiplication: d = a (*) b.
 
-static void slow_vmul(int32_t d[HILA5_N],
+void slow_vmul(int32_t d[HILA5_N],
     const int32_t a[HILA5_N], const int32_t b[HILA5_N])
 {
     for (int i = 0; i < HILA5_N; i++)
@@ -73,21 +73,15 @@ static void slow_vmul(int32_t d[HILA5_N],
 
 // Vector addition: d = a + b.
 
-static void slow_vadd(int32_t d[HILA5_N],
+void slow_vadd(int32_t d[HILA5_N],
     const int32_t a[HILA5_N], const int32_t b[HILA5_N])
 {
     for (int i = 0; i < HILA5_N; i++)
         d[i] = (a[i] + b[i]) % HILA5_Q;
 }
 
-static void slow_vsub(int32_t d[HILA5_N],
-    const int32_t a[HILA5_N], const int32_t b[HILA5_N])
-{
-    for (int i = 0; i < HILA5_N; i++)
-        d[i] = (a[i]-b[i]) % HILA5_Q;
-}
 // reverse order of ten bits i.e. 0x200 -> 0x001 and vice versa
-static int32_t bitrev10(int32_t x)
+int32_t bitrev10(int32_t x)
 {
     int t;
 
@@ -121,7 +115,7 @@ void slow_rmul(int32_t d[HILA5_N],
 
 // Slow number theoretic transform and scaling: d = c * NTT(v).
 
-static void slow_ntt(int32_t d[HILA5_N], const int32_t v[HILA5_N], int32_t c)
+void slow_ntt(int32_t d[HILA5_N], const int32_t v[HILA5_N], int32_t c)
 {
     int k, r;
     int32_t x;
@@ -140,7 +134,7 @@ static void slow_ntt(int32_t d[HILA5_N], const int32_t v[HILA5_N], int32_t c)
 
 // Slow inverse number theoretic transform: d = NTT^-1(v).
 
-static void slow_intt(int32_t d[HILA5_N], const int32_t v[HILA5_N])
+void slow_intt(int32_t d[HILA5_N], const int32_t v[HILA5_N])
 {
     int k, r;
 
@@ -160,7 +154,7 @@ static void slow_intt(int32_t d[HILA5_N], const int32_t v[HILA5_N])
 
 // 14-bit packing; mod q integer vector v[1024] to byte sequence d[1792]
 
-static void hila5_pack14(uint8_t d[HILA5_PACKED14], const int32_t v[HILA5_N])
+void hila5_pack14(uint8_t d[HILA5_PACKED14], const int32_t v[HILA5_N])
 {
     uint32_t x, y;
 
@@ -181,7 +175,7 @@ static void hila5_pack14(uint8_t d[HILA5_PACKED14], const int32_t v[HILA5_N])
 
 // 14-bit unpacking; bytes in d[1792] to integer vector v[1024]
 
-static void hila5_unpack14(int32_t v[HILA5_N],
+void hila5_unpack14(int32_t v[HILA5_N],
     const uint8_t d[HILA5_PACKED14])
 {
     uint32_t x;
@@ -206,19 +200,17 @@ static void hila5_unpack14(int32_t v[HILA5_N],
 
 
 // == Random Samplers =======================================================
-
 // generate n uniform samples from the seed
 
-static void hila5_parse(int32_t v[HILA5_N],
-                        const uint8_t *seed,
-                        const int seed_len)
+void hila5_parse(int32_t v[HILA5_N],
+                        const uint8_t *seed)
 {
     hila5_sha3_ctx_t sha3;              // init SHA3 state for SHAKE-256
     uint8_t buf[2];                     // two byte output buffer
     uint32_t x;                          // random variable
 
     hila5_shake256_init(&sha3);         // initialize the context
-    hila5_shake_update(&sha3, seed, seed_len);    // seed input
+    hila5_shake_update(&sha3, seed, HILA5_SEED_LEN);    // seed input
     hila5_shake_xof(&sha3);             // pad context to output mode
 
     // fill the vector with uniform samples
@@ -233,7 +225,7 @@ static void hila5_parse(int32_t v[HILA5_N],
 
 // sample a vector of values from the psi16 distribution
 
-static void hila5_psi16(int32_t v[HILA5_N])
+void hila5_psi16(int32_t v[HILA5_N])
 {
     uint32_t x = 0;                     // 32-bit variable
 
@@ -256,11 +248,11 @@ static void hila5_psi16(int32_t v[HILA5_N])
 
 //  Field       subcodeword:     r0  r1  r2  r3  r4  r5  r6  r7  r8  r9 (end)
 //  lengths.    bit offset:      0   16  32  49  80  99  128 151 176 203 240
-static const int xe5_len[10] = { 16, 16, 17, 31, 19, 29, 23, 25, 27, 37 };
+const int xe5_len[10] = { 16, 16, 17, 31, 19, 29, 23, 25, 27, 37 };
 
 // Compute redundancy r[] (XOR over original) from data d[]
 
-static void xe5_cod(uint64_t r[4], const uint64_t d[4])
+void xe5_cod(uint64_t r[4], const uint64_t d[4])
 {
     int i, j, l;
     uint64_t x, t, ri[10];
@@ -297,7 +289,7 @@ static void xe5_cod(uint64_t r[4], const uint64_t d[4])
 
 // Fix errors in data d[] using redundancy in r[]
 
-static void xe5_fix(uint64_t d[4], const uint64_t r[4])
+void xe5_fix(uint64_t d[4], const uint64_t r[4])
 {
     int i, j, k, l;
     uint64_t x, t, ri[10];
@@ -379,7 +371,7 @@ int crypto_kem_keypair( uint8_t *pk,    // HILA5_PUBKEY_LEN = 1824
 // Create a bit selector, reconciliation bits, and payload;
 // return nonzero on failure
 
-static int hila5_safebits(uint8_t sel[HILA5_PACKED1],
+int hila5_safebits(uint8_t sel[HILA5_PACKED1],
     uint8_t rec[HILA5_PAYLOAD_LEN],
     uint8_t pld[HILA5_PAYLOAD_LEN],
     const int32_t v[HILA5_N])
@@ -475,7 +467,7 @@ int crypto_kem_enc( uint8_t *ct,        // HILA5_CIPHERTEXT_LEN = 2012
 
 // Decode selected key bits. Return nonzero on failure.
 
-static int hila5_select(uint8_t pld[HILA5_PAYLOAD_LEN],
+int hila5_select(uint8_t pld[HILA5_PAYLOAD_LEN],
     const uint8_t sel[HILA5_PACKED1],
     const uint8_t rec[HILA5_PAYLOAD_LEN],
     const int32_t v[HILA5_N])

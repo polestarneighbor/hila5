@@ -6,18 +6,45 @@
 
 #include "hila5_sha3.h"
 #include "hila5_endian.h"
-#include "rng.h"
 #include "api.h"
+#include "kem.h"
 
 #define HILA5_PACKED_INT 1740
 #define HILA5_EXPANSION_FACTOR 7894384086L
 #define PAKE_CRYPTO_FAILURE -4
 #define PAKE_AUTH_FAILURE -8
-#define OVERFLOW -8
+#define PAKE_INSUFFICIENT_BITS -16
 #define PAKE_SUCCESS 0
 
+static void hila5_parse_xof(int32_t v[HILA5_N],
+                        const char *seed,
+                        const int seed_len)
+{
+    hila5_sha3_ctx_t sha3;              // init SHA3 state for SHAKE-256
+    uint8_t buf[2];                     // two byte output buffer
+    uint32_t x;                          // random variable
+
+    hila5_shake256_init(&sha3);         // initialize the context
+    hila5_shake_update(&sha3, seed, seed_len);    // seed input
+    hila5_shake_xof(&sha3);             // pad context to output mode
+
+    // fill the vector with uniform samples
+    for (int i = 0; i < HILA5_N; i++) {
+        do {                            // rejection sampler
+            hila5_shake_out(&sha3, buf, 2); // two bytes from SHAKE-256
+            x = ((uint32_t) buf[0]) + (((uint32_t) buf[1]) << 8); // endianess
+        } while (x >= 5 * HILA5_Q);     // reject
+        v[i] = x;                       // reduction (mod q) unnecessary
+    }
+}
+static void slow_vsub(int32_t d[HILA5_N],
+    const int32_t a[HILA5_N], const int32_t b[HILA5_N])
+{
+    for (int i = 0; i < HILA5_N; i++)
+        d[i] = (a[i]-b[i]) % HILA5_Q;
+}
 int crypto_pake_keypair(uint8_t *pk, uint8_t *sk, uint8_t *hash,
-      const unsigned char *pw, const int pw_len){
+      const char *pw, const int pw_len){
     int32_t a[HILA5_N], e[HILA5_N], g[HILA5_N], t[HILA5_N];
 
     init_pow1945();                     // make sure initialized
@@ -30,11 +57,11 @@ int crypto_pake_keypair(uint8_t *pk, uint8_t *sk, uint8_t *hash,
     hila5_psi16(t);                     // t = Psi_16
     slow_ntt(e, t, 27);                 // e = 3**3 * NTT(Psi_16) -- noise
     randombytes(pk, HILA5_SEED_LEN);    // Random seed for g
-    hila5_parse(t, pk, HILA5_SEED_LEN);                 // (t =) g = parse(seed)
+    hila5_parse(t, pk);                 // (t =) g = parse(seed)
     slow_vmul(t, a, t);
     slow_vadd(t, t, e);                 // A = NTT(g * a + e)
     //hash password and add to A
-    hila5_parse(g, pw, pw_len);
+    hila5_parse_xof(g, pw, pw_len);
     slow_ntt(g, g, 27);
     slow_vadd(t, t, g);
     hila5_pack14(pk + HILA5_SEED_LEN, t);   // pk = seed | A
@@ -48,17 +75,16 @@ int crypto_pake_keypair(uint8_t *pk, uint8_t *sk, uint8_t *hash,
 }
 
 int crypto_pake_enc(uint8_t *ct, uint8_t *secret, uint8_t *pw_hash, char *k,
-    const uint8_t *pk, const unsigned char *pw, const int pw_len){
+    const uint8_t *pk, const char *pw, const int pw_len){
   int i;
   int32_t a[HILA5_N], b[HILA5_N], e[HILA5_N], g[HILA5_N], t[HILA5_N];
   uint64_t z[8];
-  uint8_t hash[32];
   hila5_sha3_ctx_t sha3;
 
   init_pow1945();                     // make sure initialized
 
   hila5_unpack14(a, pk + HILA5_SEED_LEN); // decode m = public key
-  hila5_parse(b, pw, pw_len);         // compute gamma
+  hila5_parse_xof(b, pw, pw_len);         // compute gamma
   hila5_pack14(pw_hash, b);
   slow_ntt(b, b, 27);
   slow_vsub(a, a, b);                // decode A = m-gamma
@@ -74,8 +100,11 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *secret, uint8_t *pw_hash, char *k,
       // Safe bits -- may fail (with about 1% probability);
       memset(z, 0, sizeof(z));        // ct = .. | sel | rec, z = payload
       if (hila5_safebits(ct + HILA5_PACKED14, //
-          ct + HILA5_PACKED14 + HILA5_PACKED1, (uint8_t *) z, t) == 0)
-          break;
+          ct + HILA5_PACKED14 + HILA5_PACKED1, (uint8_t *) z, t) == 0){
+          break; }
+      for (int i = 0; i < 8; i++){
+          printf("%x\n",z[i]);
+      }
   }
   if (i == HILA5_MAX_ITER)            // FAIL: too many repeats
       return -1;
@@ -86,7 +115,8 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *secret, uint8_t *pw_hash, char *k,
 
   memcpy(ct + HILA5_PACKED14 + HILA5_PACKED1 + HILA5_PAYLOAD_LEN,
       &z[4], HILA5_ECC_LEN);          // ct = .. | encrypted error cor. code
-  memcpy(z, HILA5_KEY_LEN);
+  memcpy(z, secret, HILA5_KEY_LEN);
+
   // Construct ciphertext
   hila5_parse(g, pk);                 // g = Parse(seed)
   hila5_psi16(t);                     // noise error
@@ -98,7 +128,7 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *secret, uint8_t *pw_hash, char *k,
   //compute authenticator
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
   hila5_sha3_update(&sha3, "ORACLE2",6);
-  hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14,32);
+  hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
   hila5_sha3_update(&sha3, pw_hash, HILA5_PACKED14);
@@ -116,8 +146,7 @@ int crypto_pake_dec(uint8_t *ss, char *k2,
 {
   int32_t a[HILA5_N], b[HILA5_N];
   uint64_t z[8];
-  char * check_k[HILA5_KEY_LEN];
-  uint8_t ct_hash[32];
+  char check_k[HILA5_KEY_LEN];
   hila5_sha3_ctx_t sha3;
 
   init_pow1945();                     // make sure initialized
@@ -131,7 +160,7 @@ int crypto_pake_dec(uint8_t *ss, char *k2,
   memset(z, 0x00, sizeof(z));
   if (hila5_select((uint8_t *) z,     // reconciliation
       ct + HILA5_PACKED14, ct + HILA5_PACKED14 + HILA5_PACKED1, b))
-      return -1;                      // FAIL: not enough bits
+      return PAKE_INSUFFICIENT_BITS;                      // FAIL: not enough bits
 
   // error correction -- decrypt with "one time pad" in payload
   for (int i = 0; i < HILA5_ECC_LEN; i++) {
@@ -150,7 +179,7 @@ int crypto_pake_dec(uint8_t *ss, char *k2,
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
   hila5_sha3_update(&sha3, pw_hash, HILA5_PACKED14);
   hila5_sha3_final(check_k, &sha3);
-  if (strncmp(k, check_k)!= 0){
+  if (strncmp(k, check_k,HILA5_KEY_LEN)!= 0){
     return PAKE_AUTH_FAILURE;
   }
   //compute session key
@@ -173,11 +202,12 @@ int crypto_pake_dec(uint8_t *ss, char *k2,
   return PAKE_SUCCESS;                         // SUCCESS
 }
 
-int crypto_pake_accept(uint8_t *ss, const char *k2
+int crypto_pake_accept(uint8_t *ss, const char *k2,
     const uint8_t *pk, const uint8_t *ct, const uint8_t *secret,
-    const uint8_t secret, const uint8_t pw_hash)
+    const uint8_t *pw_hash)
 {
   char check_k[HILA5_KEY_LEN];
+  hila5_sha3_ctx_t sha3;
   //compute authenticator
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
   hila5_sha3_update(&sha3, "ORACLE2",6);
@@ -186,7 +216,7 @@ int crypto_pake_accept(uint8_t *ss, const char *k2
   hila5_sha3_update(&sha3, secret, HILA5_KEY_LEN);     // actual shared secret z
   hila5_sha3_update(&sha3, pw_hash, HILA5_PACKED14);
   hila5_sha3_final(check_k, &sha3);
-  if (strncmp(k2, check_k)!= 0){
+  if (strncmp(k2, check_k,HILA5_KEY_LEN)!= 0){
     return PAKE_AUTH_FAILURE;
   }
   //compute session key

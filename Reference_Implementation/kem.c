@@ -80,8 +80,13 @@ static void slow_vadd(int32_t d[HILA5_N],
         d[i] = (a[i] + b[i]) % HILA5_Q;
 }
 
+static void slow_vsub(int32_t d[HILA5_N],
+    const int32_t a[HILA5_N], const int32_t b[HILA5_N])
+{
+    for (int i = 0; i < HILA5_N; i++)
+        d[i] = (a[i]-b[i]) % HILA5_Q;
+}
 // reverse order of ten bits i.e. 0x200 -> 0x001 and vice versa
-
 static int32_t bitrev10(int32_t x)
 {
     int t;
@@ -361,7 +366,7 @@ int crypto_kem_keypair( uint8_t *pk,    // HILA5_PUBKEY_LEN = 1824
     hila5_pack14(pk + HILA5_SEED_LEN, t);   // pk = seed | A
 
     hila5_pack14(sk, a);                // pack secret key
-    // SHA3 hash of pubic key is stored with secret key due to API limitation
+    // SHA3 hash of public key is stored with secret key due to API limitation
     hila5_sha3(pk, HILA5_PUBKEY_LEN, sk + HILA5_PACKED14, 32);
 
     return 0;                           // SUCCESS
@@ -541,4 +546,3 @@ int crypto_kem_dec( uint8_t *ss,        // HILA5_KEY_LEN = 32
 }
 
 // == END ====================================================================
-

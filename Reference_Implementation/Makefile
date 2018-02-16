@@ -25,4 +25,5 @@ test:	$(BIN)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJS) $(BIN) PQCkemKAT_1824.* PQCpakeKAT_1824.*
+	rm -rf $(OBJS) $(BIN) PQCpakeKAT_1824.* ../KAT/PQCpakeKAT_1824.*
+	rm -rf PQCkemKAT_1824.* ../KAT/PQCkemKAT_1824.*

@@ -10,10 +10,9 @@
 
 #include <stdint.h>
 #include <string.h>
-
+#include <stdio.h>
 #include "hila5_sha3.h"
 #include "hila5_endian.h"
-
 // Parameters
 
 #define HILA5_N                 1024
@@ -381,25 +380,28 @@ int hila5_safebits(uint8_t sel[HILA5_PACKED1],
     memset(sel, 0, HILA5_PACKED1);      // selector array
     memset(rec, 0, HILA5_PAYLOAD_LEN);  // reconciliation bits for payload
     memset(pld, 0, HILA5_PAYLOAD_LEN);  // the actual payload XOR mask
-
     j = 0;                              // reset the bit counter
     for (i = 0; i < HILA5_N; i++) {     // scan for "safe bits"
         // x in { [737, 2335] U [3809, 5407] U [6881, 8479] U [9953, 11551] }
         x = v[i] % (HILA5_Q / 4);
+        if (x<0) x+= (HILA5_Q/4);
         if (x >= ((HILA5_Q / 8) - HILA5_B) &&
             x <= ((HILA5_Q / 8) + HILA5_B)) {
                                         // set selector bit
-            sel[i >> 3] |= 1 << (i & 7);
-            x = (4 * v[i]) / HILA5_Q;   // reconciliation bits
-            rec[j >> 3] ^= (x & 1) << (j & 7);
-            x >>= 1;                    // payload bits
-            pld[j >> 3] ^= (x & 1) << (j & 7);
-            j++;                        // payload bit count
-            if (j >= 8 * HILA5_PAYLOAD_LEN)
-                return 0;               // SUCCESS: enough bits
-        }
+
+                  sel[i >> 3] |= 1 << (i & 7);
+                  x = (4 * v[i]) / HILA5_Q;   // reconciliation bits
+                  rec[j >> 3] ^= (x & 1) << (j & 7);
+                  x >>= 1;                    // payload bits
+                  pld[j >> 3] ^= (x & 1) << (j & 7);
+
+                  j++;                        // payload bit count
+                  if (j >= 8 * HILA5_PAYLOAD_LEN) {
+                      return 0;               // SUCCESS: enough bits
+                  }
+              }
     }
-    return j;                           // FAIL: not enough bits
+    return 5;                           // FAIL: not enough bits
 }
 
 // Encapsulate
@@ -475,7 +477,6 @@ int hila5_select(uint8_t pld[HILA5_PAYLOAD_LEN],
     int i, j, x;
 
     memset(pld, 0, HILA5_PAYLOAD_LEN);  // set payload to all zeros
-
     j = 0;
     for (i = 0; i < HILA5_N; i++) {     // scan for selected bits
         if ((sel[i >> 3] >> (i & 7)) & 1) {
@@ -485,8 +486,9 @@ int hila5_select(uint8_t pld[HILA5_PAYLOAD_LEN],
             x = ((2 * ((x + HILA5_Q) % HILA5_Q)) / HILA5_Q);
             pld[j >> 3] ^= (x & 1) << (j & 7);
             j++;
-            if (j >= 8 * HILA5_PAYLOAD_LEN)
+            if (j >= 8 * HILA5_PAYLOAD_LEN){
                 return 0;               // SUCCESS: got full payload
+            }
         }
     }
 

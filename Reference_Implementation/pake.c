@@ -41,7 +41,7 @@ static void slow_vsub(int32_t d[HILA5_N],
     const int32_t a[HILA5_N], const int32_t b[HILA5_N])
 {
     for (int i = 0; i < HILA5_N; i++)
-        d[i] = (a[i]-b[i]) % HILA5_Q;
+        d[i] = (a[i]-b[i]+5*HILA5_Q) % HILA5_Q;
 }
 int crypto_pake_keypair(uint8_t *pk, uint8_t *sk, uint8_t *hash,
       const char *pw, const int pw_len){
@@ -58,11 +58,11 @@ int crypto_pake_keypair(uint8_t *pk, uint8_t *sk, uint8_t *hash,
     slow_ntt(e, t, 27);                 // e = 3**3 * NTT(Psi_16) -- noise
     randombytes(pk, HILA5_SEED_LEN);    // Random seed for g
     hila5_parse(t, pk);                 // (t =) g = parse(seed)
+
     slow_vmul(t, a, t);
     slow_vadd(t, t, e);                 // A = NTT(g * a + e)
     //hash password and add to A
     hila5_parse_xof(g, pw, pw_len);
-    slow_ntt(g, g, 27);
     slow_vadd(t, t, g);
     hila5_pack14(pk + HILA5_SEED_LEN, t);   // pk = seed | A
 
@@ -86,31 +86,29 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *secret, uint8_t *pw_hash, char *k,
   hila5_unpack14(a, pk + HILA5_SEED_LEN); // decode m = public key
   hila5_parse_xof(b, pw, pw_len);         // compute gamma
   hila5_pack14(pw_hash, b);
-  slow_ntt(b, b, 27);
   slow_vsub(a, a, b);                // decode A = m-gamma
-
-  for (i = 0; i < HILA5_MAX_ITER; i++) {
-
-      hila5_psi16(t);                 // recipients' ephemeral secret
+    for (i = 0; i < HILA5_MAX_ITER; i++) {
+        hila5_psi16(t);                 // recipients' ephemeral secret
       slow_ntt(b, t, 27);             // b = 3**3 NTT(Psi_16)
       slow_vmul(e, a, b);
       slow_intt(t, e);                // t = a * b  (approx. share "y")
       slow_smul(t, 1416);             // scale by 1416 = 1 / (3**6 * 1024)
-
       // Safe bits -- may fail (with about 1% probability);
       memset(z, 0, sizeof(z));        // ct = .. | sel | rec, z = payload
       if (hila5_safebits(ct + HILA5_PACKED14, //
           ct + HILA5_PACKED14 + HILA5_PACKED1, (uint8_t *) z, t) == 0){
-          break; }
-      for (int i = 0; i < 8; i++){
-          printf("%x\n",z[i]);
+          break;
       }
   }
   if (i == HILA5_MAX_ITER)            // FAIL: too many repeats
       return -1;
-
   HILA5_ENDIAN_FLIP64(z, 8);
   xe5_cod(&z[4], z);                  // create linear error correction code
+  printf("S: z is \n");
+  for (int i =0; i < HILA5_KEY_LEN/8; i++){
+    printf("%lx ", z[i]);
+  }
+  printf("\n");
   HILA5_ENDIAN_FLIP64(z, 8);
 
   memcpy(ct + HILA5_PACKED14 + HILA5_PACKED1 + HILA5_PAYLOAD_LEN,
@@ -133,7 +131,6 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *secret, uint8_t *pw_hash, char *k,
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
   hila5_sha3_update(&sha3, pw_hash, HILA5_PACKED14);
   hila5_sha3_final(k, &sha3);
-
   return PAKE_SUCCESS;
 }
 
@@ -156,12 +153,10 @@ int crypto_pake_dec(uint8_t *ss, char *k2,
   slow_vmul(a, a, b);                 // a * B
   slow_intt(b, a);                    // shared secret ("x") in b
   slow_smul(b, 1416);                 // scale by 1416 = (3^6 * 1024)^-1
-
   memset(z, 0x00, sizeof(z));
   if (hila5_select((uint8_t *) z,     // reconciliation
       ct + HILA5_PACKED14, ct + HILA5_PACKED14 + HILA5_PACKED1, b))
       return PAKE_INSUFFICIENT_BITS;                      // FAIL: not enough bits
-
   // error correction -- decrypt with "one time pad" in payload
   for (int i = 0; i < HILA5_ECC_LEN; i++) {
       ((uint8_t *) &z[4])[i] ^=
@@ -171,6 +166,11 @@ int crypto_pake_dec(uint8_t *ss, char *k2,
   xe5_cod(&z[4], z);                  // linear code
   xe5_fix(z, &z[4]);                  // fix possible errors
   HILA5_ENDIAN_FLIP64(z, 8);
+  printf("C: z is \n");
+  for (int i =0; i < HILA5_KEY_LEN/8; i++){
+    printf("%lx ", z[i]);
+  }
+  printf("\n");
   //compute authenticator
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
   hila5_sha3_update(&sha3, "ORACLE2",6);

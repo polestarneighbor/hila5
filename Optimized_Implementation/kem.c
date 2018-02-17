@@ -441,9 +441,8 @@ int crypto_kem_dec( uint8_t *ss,        // HILA5_KEY_LEN = 32
     hila5_sha3_init(&sha3, 0);
     memset(hct, 0x00, sizeof(hct));
     memset(c, 0x00, sizeof(c));
-    memset(s, 0x00, sizeof(z));
+    memset(s, 0x00, sizeof(s));
     memset(z, 0x00, sizeof(z));
 
     return 0;                               // SUCCESS
 }
-

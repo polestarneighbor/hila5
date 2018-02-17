@@ -3,8 +3,8 @@
 # (Optimized Implementation)
 
 BIN	= genkat_opt
-OBJS	= kem.o hila5_sha3_opt.o ms_ntt.o ms_ntt_const.o \
-	../KAT/src/rng.o ../KAT/src/PQCgenKAT_kem.o
+OBJS	= kem.o hila5_sha3_opt.o ms_ntt.o ms_ntt_const.o pake.o \
+	../KAT/src/rng.o ../KAT/src/PQCgenKAT_pake.o
 
 CC	?= gcc
 CFLAGS	+= -std=c99 -Wall -Ofast -I.
@@ -15,9 +15,9 @@ $(BIN): $(OBJS)
 	$(CC) $(LDFLAGS) -o $(BIN) $(OBJS) $(LDLIBS)
 
 test:	$(BIN)
-	./$(BIN)
+	./$(BIN) password password
 	@echo "== BEGIN KAT DIFFERENCE =="
-	@diff PQCkemKAT_1824.rsp ../KAT/PQCkemKAT_1824.rsp
+	@diff PQCkemKAT_3616.rsp ../KAT/PQCkemKAT_3616.rsp
 	@echo "== END KAT DIFFERENCE =="
 
 .c.o:

@@ -104,16 +104,11 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *secret, uint8_t *pw_hash, char *k,
       return -1;
   HILA5_ENDIAN_FLIP64(z, 8);
   xe5_cod(&z[4], z);                  // create linear error correction code
-  printf("S: z is \n");
-  for (int i =0; i < HILA5_KEY_LEN/8; i++){
-    printf("%lx ", z[i]);
-  }
-  printf("\n");
-  HILA5_ENDIAN_FLIP64(z, 8);
 
+  HILA5_ENDIAN_FLIP64(z, 8);
   memcpy(ct + HILA5_PACKED14 + HILA5_PACKED1 + HILA5_PAYLOAD_LEN,
       &z[4], HILA5_ECC_LEN);          // ct = .. | encrypted error cor. code
-  memcpy(z, secret, HILA5_KEY_LEN);
+  memcpy(secret, z, HILA5_KEY_LEN);
 
   // Construct ciphertext
   hila5_parse(g, pk);                 // g = Parse(seed)
@@ -125,7 +120,7 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *secret, uint8_t *pw_hash, char *k,
 
   //compute authenticator
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
-  hila5_sha3_update(&sha3, "ORACLE2",6);
+  hila5_sha3_update(&sha3, "ORACLE2",7);
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
@@ -166,14 +161,10 @@ int crypto_pake_dec(uint8_t *ss, char *k2,
   xe5_cod(&z[4], z);                  // linear code
   xe5_fix(z, &z[4]);                  // fix possible errors
   HILA5_ENDIAN_FLIP64(z, 8);
-  printf("C: z is \n");
-  for (int i =0; i < HILA5_KEY_LEN/8; i++){
-    printf("%lx ", z[i]);
-  }
-  printf("\n");
+
   //compute authenticator
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
-  hila5_sha3_update(&sha3, "ORACLE2",6);
+  hila5_sha3_update(&sha3, "ORACLE2",7);
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
@@ -185,7 +176,7 @@ int crypto_pake_dec(uint8_t *ss, char *k2,
   //compute session key
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);          // final hash
   hila5_sha3_update(&sha3, "HILA5PAKEv10", 12);        // version ident
-  hila5_sha3_update(&sha3, "ORACLE4", 6);
+  hila5_sha3_update(&sha3, "ORACLE4", 7);
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
@@ -193,7 +184,7 @@ int crypto_pake_dec(uint8_t *ss, char *k2,
   hila5_sha3_final(ss, &sha3);                    // hash out to ss
   //compute authenticator
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
-  hila5_sha3_update(&sha3, "ORACLE3",6);
+  hila5_sha3_update(&sha3, "ORACLE3",7);
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
@@ -210,7 +201,7 @@ int crypto_pake_accept(uint8_t *ss, const char *k2,
   hila5_sha3_ctx_t sha3;
   //compute authenticator
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
-  hila5_sha3_update(&sha3, "ORACLE2",6);
+  hila5_sha3_update(&sha3, "ORACLE3",7);
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, secret, HILA5_KEY_LEN);     // actual shared secret z
@@ -222,7 +213,7 @@ int crypto_pake_accept(uint8_t *ss, const char *k2,
   //compute session key
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);          // final hash
   hila5_sha3_update(&sha3, "HILA5PAKEv10", 12);        // version ident
-  hila5_sha3_update(&sha3, "ORACLE4", 6);
+  hila5_sha3_update(&sha3, "ORACLE4", 7);
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, secret, HILA5_KEY_LEN);     // actual shared secret z

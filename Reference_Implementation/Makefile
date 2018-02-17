@@ -1,5 +1,5 @@
 # Makefile
-# 2017-09-23  Markku-Juhani O. Saarinen <mjos@iki.fi>
+# 2018-02-18  Hannah Davis <davi2495@umn.edu>
 # (Reference Implementation)
 
 BIN	= genkat_ref
@@ -25,5 +25,5 @@ test:	$(BIN)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJS) $(BIN) PQCpakeKAT_1824.* ../KAT/PQCpakeKAT_1824.*
-	rm -rf PQCkemKAT_1824.* ../KAT/PQCkemKAT_1824.*
+	rm -rf $(OBJS) $(BIN) PQCpakeKAT_3616.* ../KAT/PQCpakeKAT_3616.*
+	rm -rf PQCkemKAT_3616.* ../KAT/PQCkemKAT_3616.*

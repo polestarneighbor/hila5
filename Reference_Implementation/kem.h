@@ -1,5 +1,5 @@
-#include "api.h"
-
+#ifndef _KEM_H_
+#define _KEM_H_
 
 #define HILA5_N                 1024
 #define HILA5_Q                 12289
@@ -19,6 +19,7 @@
 // Prototype here so that we wouldn't have to find rng.h
 int randombytes(unsigned char *x, unsigned long long xlen);
 
+// Functionality from kem.c that we are stealing
 void init_pow1945();
 void hila5_psi16(int32_t v[HILA5_N]);
 void slow_ntt(int32_t d[HILA5_N], const int32_t v[HILA5_N], int32_t c);
@@ -42,4 +43,5 @@ void xe5_fix(uint64_t d[4], const uint64_t r[4]);
 int hila5_select(uint8_t pld[HILA5_PAYLOAD_LEN],
     const uint8_t sel[HILA5_PACKED1],
     const uint8_t rec[HILA5_PAYLOAD_LEN],
-    const int32_t v[HILA5_N]);    
+    const int32_t v[HILA5_N]);
+#endif

@@ -10,7 +10,6 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <stdio.h>
 #include "hila5_sha3.h"
 #include "hila5_endian.h"
 // Parameters

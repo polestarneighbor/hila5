@@ -35,7 +35,7 @@ int randombytes(unsigned char *x, unsigned long long xlen);
 
 // 14-bit packing; mod q integer vector v[1024] to byte sequence d[1792]
 
-static void hila5_pack14(uint8_t d[HILA5_PACKED14],
+void hila5_pack14(uint8_t d[HILA5_PACKED14],
     const int32_t v[HILA5_N])
 {
     int i, j, x, y;
@@ -57,7 +57,7 @@ static void hila5_pack14(uint8_t d[HILA5_PACKED14],
 
 // 14-bit unpacking; bytes in d[1792] to integer vector v[1024]
 
-static void hila5_unpack14(int32_t v[HILA5_N],
+void hila5_unpack14(int32_t v[HILA5_N],
     const uint8_t d[HILA5_PACKED14])
 {
     int i, j;
@@ -85,7 +85,7 @@ static void hila5_unpack14(int32_t v[HILA5_N],
 
 // generate n uniform samples from the seed
 
-static void hila5_parse(int32_t v[HILA5_N],
+void hila5_parse(int32_t v[HILA5_N],
                         const uint8_t seed[HILA5_SEED_LEN])
 {
     hila5_sha3_ctx_t sha3;              // init SHA3 state for SHAKE-256
@@ -108,7 +108,7 @@ static void hila5_parse(int32_t v[HILA5_N],
 
 // sample a vector of values from the psi16 distribution
 
-static void hila5_psi16(int32_t v[HILA5_N])
+void hila5_psi16(int32_t v[HILA5_N])
 {
     uint32_t x = 0;                     // 32-bit variable
 
@@ -135,7 +135,7 @@ static const int xe5_len[10] = { 16, 16, 17, 31, 19, 29, 23, 25, 27, 37 };
 
 // Compute redundancy r[] (XOR over original) from data d[]
 
-static void xe5_cod(uint64_t r[4], const uint64_t d[4])
+void xe5_cod(uint64_t r[4], const uint64_t d[4])
 {
     int i, j, l;
     uint64_t x, t, ri[10];
@@ -171,7 +171,7 @@ static void xe5_cod(uint64_t r[4], const uint64_t d[4])
 
 // Fix errors in data d[] using redundancy in r[]
 
-static void xe5_fix(uint64_t d[4], const uint64_t r[4])
+void xe5_fix(uint64_t d[4], const uint64_t r[4])
 {
     int i, j, k, l;
     uint64_t x, t, ri[10];
@@ -258,7 +258,7 @@ int crypto_kem_keypair( uint8_t *pk,    // HILA5_PUBKEY_LEN = 1824
 // create a bit selector, reconciliation bits, and payload;
 // return nonzero on failure
 
-static int hila5_safebits(uint8_t sel[HILA5_PACKED1],
+int hila5_safebits(uint8_t sel[HILA5_PACKED1],
     uint8_t rec[HILA5_PAYLOAD_LEN],
     uint8_t pld[HILA5_PAYLOAD_LEN],
     const int32_t v[HILA5_N])
@@ -364,7 +364,7 @@ int crypto_kem_enc( uint8_t *ct,        // HILA5_CIPHERTEXT_LEN = 2012
 
 // Decode selected key bits. Return nonzero on failure.
 
-static int hila5_select(uint8_t pld[HILA5_PAYLOAD_LEN],
+int hila5_select(uint8_t pld[HILA5_PAYLOAD_LEN],
     const uint8_t sel[HILA5_PACKED1],
     const uint8_t rec[HILA5_PAYLOAD_LEN],
     const int32_t v[HILA5_N])

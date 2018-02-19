@@ -101,7 +101,6 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *authkey, char *authS,
   hila5_parse_xi(b, pw, strlen(pw));         // compute gamma
   hila5_pack14(authkey, b);
   mslc_psub(a, a, b, HILA5_N);                // decode A = m-gamma
-
   for (i = 0; i < HILA5_MAX_ITER; i++) {
       hila5_psi16(t);                 // recipients' ephemeral secret
       mslc_ntt(t, mslc_psi_rev_ntt1024, HILA5_N);
@@ -112,17 +111,27 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *authkey, char *authS,
       mslc_correction(b, HILA5_Q, HILA5_N);
       // Safe bits -- may fail (with about 1% probability);
       memset(z, 0, sizeof(z));        // ct = .. | sel | rec, z = payload
+      printf("C says b is:");
+      for (int j = 0; j < HILA5_N; j++){
+        printf("%d ", b[j]);
+      }
+      printf("\n");
       if (hila5_safebits(ct + HILA5_PACKED14, //
-          ct + HILA5_PACKED14 + HILA5_PACKED1, (uint8_t *) z, t) == 0){
+          ct + HILA5_PACKED14 + HILA5_PACKED1, (uint8_t *) z, b) == 0){
           break;
       }
   }
   if (i == HILA5_MAX_ITER)            // FAIL: too many repeats
       return -1;
+/*  printf("C says z is \n");
+  for (int j = 0; j< HILA5_KEY_LEN/8; j++){
+    printf("%lx ", z[j]);
+  }
+  printf("\n");*/
   HILA5_ENDIAN_FLIP64(z, 8);
   xe5_cod(&z[4], z);                  // create linear error correction code
-
   HILA5_ENDIAN_FLIP64(z, 8);
+
   memcpy(ct + HILA5_PACKED14 + HILA5_PACKED1 + HILA5_PAYLOAD_LEN,
       &z[4], HILA5_ECC_LEN);          // ct = .. | encrypted error cor. code
   memcpy(authkey+HILA5_PACKED14, z, HILA5_KEY_LEN);
@@ -142,8 +151,9 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *authkey, char *authS,
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
+    hila5_sha3_final(authS, &sha3);
   hila5_sha3_update(&sha3, authkey, HILA5_PACKED14);
-  hila5_sha3_final(authS, &sha3);
+
 
   // clear sensitive data
   hila5_sha3_init(&sha3, 0);
@@ -175,7 +185,11 @@ int crypto_pake_dec(uint8_t *ss, char *authC,
   mslc_intt(b, mslc_inv_rev_ntt1024, 3651, 4958, HILA5_N);
   mslc_two_reduce12289(b, HILA5_N);
   mslc_correction(b, HILA5_Q, HILA5_N);
-
+  printf("S says b is:");
+  for (int j = 0; j < HILA5_N; j++){
+    printf("%d ", b[j]);
+  }
+  printf("\n");
   memset(z, 0x00, sizeof(z));
   if (hila5_select((uint8_t *) z,     // reconciliation
       ct + HILA5_PACKED14,
@@ -190,15 +204,20 @@ int crypto_pake_dec(uint8_t *ss, char *authC,
   xe5_cod(&z[4], z);                  // linear code
   xe5_fix(z, &z[4]);                  // fix possible errors
   HILA5_ENDIAN_FLIP64(z, 8);
-
+/*  printf("S says z is \n");
+  for (int j = 0; j< HILA5_KEY_LEN/8; j++){
+    printf("%lx ", z[j]);
+  }
+  printf("\n"); */
   //compute authenticator
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
   hila5_sha3_update(&sha3, "ORACLE2",7);
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
-  hila5_sha3_update(&sha3, sk+HILA5_PACKED14+32, HILA5_PACKED14);
-  hila5_sha3_final(check_auth, &sha3);
+    hila5_sha3_final(check_auth, &sha3);
+  hila5_sha3_update(&sha3, sk+HILA5_PACKED14, HILA5_PACKED14);
+
   if (strncmp(authS, check_auth,HILA5_KEY_LEN)!= 0){
     return PAKE_AUTH_FAILURE;
   }
@@ -209,7 +228,7 @@ int crypto_pake_dec(uint8_t *ss, char *authC,
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
-  hila5_sha3_update(&sha3, sk+HILA5_PACKED14+32, HILA5_PACKED14);
+  hila5_sha3_update(&sha3, sk+HILA5_PACKED14, HILA5_PACKED14);
   hila5_sha3_final(ss, &sha3);                    // hash out to ss
   //compute authenticator
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
@@ -217,7 +236,7 @@ int crypto_pake_dec(uint8_t *ss, char *authC,
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
-  hila5_sha3_update(&sha3, sk+HILA5_PACKED14+32, HILA5_PACKED14);
+  hila5_sha3_update(&sha3, sk+HILA5_PACKED14, HILA5_PACKED14);
   hila5_sha3_final(authC, &sha3);
 
   //clear sensitive data

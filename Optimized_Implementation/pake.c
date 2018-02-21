@@ -11,8 +11,6 @@
 #include "ms_priv.h"
 #include "kem.h"
 
-#define HILA5_PACKED_INT 1740
-#define HILA5_EXPANSION_FACTOR 7894384086L
 #define PAKE_CRYPTO_FAILURE -4
 #define PAKE_AUTH_FAILURE -8
 #define PAKE_INSUFFICIENT_BITS -16
@@ -44,10 +42,8 @@ static void hila5_parse_xi(int32_t v[HILA5_N],
 void mslc_padd( int32_t *c,const int32_t *a, const int32_t *b, unsigned int n)
 {
     unsigned int i;
-
     for (i = 0; i < n; i++) {
-        c[i] = mslc_reduce12289(a[i] + b[i]);
-        c[i] = mslc_reduce12289(c[i]);
+        c[i] = (a[i] + b[i]) % HILA5_Q;
     }
 }
 // Component-wise subtraction
@@ -55,10 +51,8 @@ void mslc_padd( int32_t *c,const int32_t *a, const int32_t *b, unsigned int n)
 void mslc_psub( int32_t *c, const int32_t *a, const int32_t *b, unsigned int n)
 {
     unsigned int i;
-
     for (i = 0; i < n; i++) {
-        c[i] = mslc_reduce12289(a[i] - b[i]+6*HILA5_Q);
-        c[i] = mslc_reduce12289(c[i]);
+        c[i] = (a[i] - b[i]+5*HILA5_Q)%HILA5_Q;
     }
 }
 
@@ -66,28 +60,29 @@ int crypto_pake_keypair(uint8_t *pk, uint8_t *sk, const char *pw){
     int32_t s[HILA5_N], e[HILA5_N], a[HILA5_N];
 
 
-    // Secret key
+    // Secret key s
     hila5_psi16(s);                         // s = NTT(Psi_16)
     mslc_ntt(s, mslc_psi_rev_ntt1024, HILA5_N);
 
-    // Public key
+    // Public key pk = seed | (A+gamma)
     hila5_psi16(e);                         // e = NTT(Psi_16)
     mslc_ntt(e, mslc_psi_rev_ntt1024, HILA5_N);
     randombytes(pk, HILA5_SEED_LEN);        // Random seed for t
     hila5_parse(a, pk);                     // a = Parse(seed);
+
     mslc_pmuladd(a, s, e, a, HILA5_N);      // A = NTT(a * s + e)
     mslc_correction(a, HILA5_Q, HILA5_N);
     //hash password and add to A
     hila5_parse_xi(e, pw, strlen(pw));      // e now contains gamma
-    hila5_pack14(sk + HILA5_PACKED14, e);
     mslc_padd(a, a, e, HILA5_N);            // m = A + gamma
     hila5_pack14(pk + HILA5_SEED_LEN, a);   // pk = seed | m
 
+    // Pack private key: sk = s | gamma
     mslc_two_reduce12289(s,HILA5_N);
     mslc_correction(s, HILA5_Q, HILA5_N);
-    hila5_pack14(sk, s);                // pack secret key
-      // Hash of password is stored with secret key
-
+    hila5_pack14(sk, s);
+    // Hash of password is stored with secret key
+    hila5_pack14(sk + HILA5_PACKED14, e);
     // Try to clear out sensitive data
     memset(s, 0x00, sizeof(s));
     memset(e, 0x00, sizeof(e));
@@ -97,19 +92,23 @@ int crypto_pake_keypair(uint8_t *pk, uint8_t *sk, const char *pw){
     return PAKE_SUCCESS;                           // SUCCESS
 }
 
-int crypto_pake_enc(uint8_t *ct, uint8_t *authkey, char *authS,
-    const uint8_t *pk, const char *pw){
+int crypto_pake_enc(uint8_t *ct,
+                    uint8_t *authkey,
+                    char *authS,
+                    const uint8_t *pk, const char *pw){
   int i;
   int32_t a[HILA5_N], b[HILA5_N], e[HILA5_N], t[HILA5_N];
   uint64_t z[8];
   hila5_sha3_ctx_t sha3;
 
-  hila5_unpack14(a, pk + HILA5_SEED_LEN); // decode m = public key
-  hila5_parse_xi(b, pw, strlen(pw));         // compute gamma
+  // Get m
+  hila5_unpack14(a, pk + HILA5_SEED_LEN);
+  hila5_parse_xi(b, pw, strlen(pw));   // compute gamma
   hila5_pack14(authkey, b);
-  mslc_psub(a, a, b, HILA5_N);                // decode A = m-gamma
+  mslc_psub(a, a, b, HILA5_N);         // decode A = m-gamma
   for (i = 0; i < HILA5_MAX_ITER; i++) {
-      hila5_psi16(t);                 // recipients' ephemeral secret
+      // Ephemeral secret --DO NOT CACHE
+      hila5_psi16(t);
       mslc_ntt(t, mslc_psi_rev_ntt1024, HILA5_N);
       mslc_pmul(a, t, b, HILA5_N);        // b = a * t
       // 8281 = sqrt(-1) * 2^-10 * 3^-10, 7755 = 2^-10 * 3^-10
@@ -129,7 +128,6 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *authkey, char *authS,
   HILA5_ENDIAN_FLIP64(z, 8);
   xe5_cod(&z[4], z);                  // create linear error correction code
   HILA5_ENDIAN_FLIP64(z, 8);
-
   memcpy(ct + HILA5_PACKED14 + HILA5_PACKED1 + HILA5_PAYLOAD_LEN,
       &z[4], HILA5_ECC_LEN);          // ct = .. | encrypted error cor. code
   memcpy(authkey+HILA5_PACKED14, z, HILA5_KEY_LEN);

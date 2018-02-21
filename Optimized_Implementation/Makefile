@@ -17,11 +17,11 @@ $(BIN): $(OBJS)
 test:	$(BIN)
 	./$(BIN) password password
 	@echo "== BEGIN KAT DIFFERENCE =="
-	@diff PQCkemKAT_3616.rsp ../KAT/PQCkemKAT_3616.rsp
+	@diff PQCkemKAT_1824.rsp ../KAT/PQCkemKAT_1824.rsp
 	@echo "== END KAT DIFFERENCE =="
 
 .c.o:
 	$(CC) $(CFLAGS) $(INCS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJS) $(BIN) PQCkemKAT_1824.*
+	rm -rf $(OBJS) $(BIN) PQCkem* ../KAT/PQCkem* PQCpake*

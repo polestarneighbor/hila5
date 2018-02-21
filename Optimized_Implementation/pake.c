@@ -41,24 +41,24 @@ static void hila5_parse_xi(int32_t v[HILA5_N],
 }
 // Component-wise addition
 
-void mslc_padd(const int32_t *a, const int32_t *b, int32_t *c, unsigned int n)
+void mslc_padd( int32_t *c,const int32_t *a, const int32_t *b, unsigned int n)
 {
     unsigned int i;
 
     for (i = 0; i < n; i++) {
-        c[i] = a[i] +b[i];
-         mslc_two_reduce12289(c+i, n);
+        c[i] = mslc_reduce12289(a[i] + b[i]);
+        c[i] = mslc_reduce12289(c[i]);
     }
 }
-// Component-wise addition
+// Component-wise subtraction
 
-void mslc_psub(const int32_t *a, const int32_t *b, int32_t *c, unsigned int n)
+void mslc_psub( int32_t *c, const int32_t *a, const int32_t *b, unsigned int n)
 {
     unsigned int i;
 
     for (i = 0; i < n; i++) {
-        c[i] = a[i] - b[i];
-        mslc_two_reduce12289(c+i, n);
+        c[i] = mslc_reduce12289(a[i] - b[i]+6*HILA5_Q);
+        c[i] = mslc_reduce12289(c[i]);
     }
 }
 
@@ -68,24 +68,31 @@ int crypto_pake_keypair(uint8_t *pk, uint8_t *sk, const char *pw){
 
     // Secret key
     hila5_psi16(s);                         // s = NTT(Psi_16)
-    mslc_ntt(a, mslc_psi_rev_ntt1024, HILA5_N);
+    mslc_ntt(s, mslc_psi_rev_ntt1024, HILA5_N);
 
     // Public key
     hila5_psi16(e);                         // e = NTT(Psi_16)
     mslc_ntt(e, mslc_psi_rev_ntt1024, HILA5_N);
     randombytes(pk, HILA5_SEED_LEN);        // Random seed for t
-    hila5_parse(a, pk);                     // g = Parse(seed);
+    hila5_parse(a, pk);                     // a = Parse(seed);
     mslc_pmuladd(a, s, e, a, HILA5_N);      // A = NTT(a * s + e)
     mslc_correction(a, HILA5_Q, HILA5_N);
-
     //hash password and add to A
     hila5_parse_xi(e, pw, strlen(pw));      // e now contains gamma
+    hila5_pack14(sk + HILA5_PACKED14, e);
     mslc_padd(a, a, e, HILA5_N);            // m = A + gamma
     hila5_pack14(pk + HILA5_SEED_LEN, a);   // pk = seed | m
 
-    hila5_pack14(sk, a);                // pack secret key
-      // SHA3 hash of password is stored with secret key
-    hila5_pack14(sk + HILA5_PACKED14, s);
+    mslc_two_reduce12289(s,HILA5_N);
+    mslc_correction(s, HILA5_Q, HILA5_N);
+    hila5_pack14(sk, s);                // pack secret key
+      // Hash of password is stored with secret key
+
+    // Try to clear out sensitive data
+    memset(s, 0x00, sizeof(s));
+    memset(e, 0x00, sizeof(e));
+    memset(a, 0x00, sizeof(a));
+
 
     return PAKE_SUCCESS;                           // SUCCESS
 }
@@ -111,11 +118,6 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *authkey, char *authS,
       mslc_correction(b, HILA5_Q, HILA5_N);
       // Safe bits -- may fail (with about 1% probability);
       memset(z, 0, sizeof(z));        // ct = .. | sel | rec, z = payload
-      printf("C says b is:");
-      for (int j = 0; j < HILA5_N; j++){
-        printf("%d ", b[j]);
-      }
-      printf("\n");
       if (hila5_safebits(ct + HILA5_PACKED14, //
           ct + HILA5_PACKED14 + HILA5_PACKED1, (uint8_t *) z, b) == 0){
           break;
@@ -123,11 +125,7 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *authkey, char *authS,
   }
   if (i == HILA5_MAX_ITER)            // FAIL: too many repeats
       return -1;
-/*  printf("C says z is \n");
-  for (int j = 0; j< HILA5_KEY_LEN/8; j++){
-    printf("%lx ", z[j]);
-  }
-  printf("\n");*/
+
   HILA5_ENDIAN_FLIP64(z, 8);
   xe5_cod(&z[4], z);                  // create linear error correction code
   HILA5_ENDIAN_FLIP64(z, 8);
@@ -142,7 +140,6 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *authkey, char *authS,
   mslc_ntt(e, mslc_psi_rev_ntt1024, HILA5_N);
   mslc_pmuladd(a, t, e, a, HILA5_N);      // a = NTT(g * b + e)
   mslc_correction(a, HILA5_Q, HILA5_N);
-
   hila5_pack14(ct, a);                    // public value in ct
 
   //compute authenticator
@@ -151,7 +148,7 @@ int crypto_pake_enc(uint8_t *ct, uint8_t *authkey, char *authS,
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
-    hila5_sha3_final(authS, &sha3);
+      hila5_sha3_final(authS, &sha3);
   hila5_sha3_update(&sha3, authkey, HILA5_PACKED14);
 
 
@@ -175,7 +172,6 @@ int crypto_pake_dec(uint8_t *ss, char *authC,
   uint64_t z[8];
   char check_auth[HILA5_KEY_LEN];
   hila5_sha3_ctx_t sha3;
-
   hila5_unpack14(a, sk);              // unpack secret key
   hila5_unpack14(b, ct);              // get B from ciphertext
   mslc_pmul(b, a, b, HILA5_N);
@@ -185,11 +181,6 @@ int crypto_pake_dec(uint8_t *ss, char *authC,
   mslc_intt(b, mslc_inv_rev_ntt1024, 3651, 4958, HILA5_N);
   mslc_two_reduce12289(b, HILA5_N);
   mslc_correction(b, HILA5_Q, HILA5_N);
-  printf("S says b is:");
-  for (int j = 0; j < HILA5_N; j++){
-    printf("%d ", b[j]);
-  }
-  printf("\n");
   memset(z, 0x00, sizeof(z));
   if (hila5_select((uint8_t *) z,     // reconciliation
       ct + HILA5_PACKED14,
@@ -204,18 +195,13 @@ int crypto_pake_dec(uint8_t *ss, char *authC,
   xe5_cod(&z[4], z);                  // linear code
   xe5_fix(z, &z[4]);                  // fix possible errors
   HILA5_ENDIAN_FLIP64(z, 8);
-/*  printf("S says z is \n");
-  for (int j = 0; j< HILA5_KEY_LEN/8; j++){
-    printf("%lx ", z[j]);
-  }
-  printf("\n"); */
   //compute authenticator
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
   hila5_sha3_update(&sha3, "ORACLE2",7);
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
-    hila5_sha3_final(check_auth, &sha3);
+        hila5_sha3_final(check_auth, &sha3);
   hila5_sha3_update(&sha3, sk+HILA5_PACKED14, HILA5_PACKED14);
 
   if (strncmp(authS, check_auth,HILA5_KEY_LEN)!= 0){
@@ -260,6 +246,7 @@ int crypto_pake_auth(uint8_t *ss, const char *auth_C,
   hila5_sha3_update(&sha3, authkey+HILA5_PACKED14, HILA5_KEY_LEN);     // actual shared secret z
   hila5_sha3_update(&sha3, authkey, HILA5_PACKED14);
   hila5_sha3_final(check_auth, &sha3);
+
   if (strncmp(auth_C, check_auth,HILA5_KEY_LEN)!= 0){
     return PAKE_AUTH_FAILURE;
   }

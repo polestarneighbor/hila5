@@ -16,7 +16,7 @@
 
 // Reduction modulo q
 
-static int32_t mslc_reduce12289(int64_t a) 
+int32_t mslc_reduce12289(int64_t a)
 { 
     int32_t c0, c1;
 
@@ -28,7 +28,7 @@ static int32_t mslc_reduce12289(int64_t a)
 
 // Two merged reductions modulo q
 
-static int32_t mslc_reduce12289_2x(int64_t a) 
+static int32_t mslc_reduce12289_2x(int64_t a)
 {
     int32_t c0, c1, c2;
 
@@ -41,8 +41,8 @@ static int32_t mslc_reduce12289_2x(int64_t a)
 
 // Forward NTT
 
-void mslc_ntt(int32_t *a, const int32_t *psi_rev, unsigned int n) 
-{ 
+void mslc_ntt(int32_t *a, const int32_t *psi_rev, unsigned int n)
+{
     unsigned int m, i, j, j1, j2, k = n;
     int32_t S, U, V;
 
@@ -94,9 +94,9 @@ void mslc_ntt(int32_t *a, const int32_t *psi_rev, unsigned int n)
 
 // Inverse NTT
 
-void mslc_intt(int32_t *a, const int32_t *omegainv_rev, 
-    const int32_t omegainv1n_rev, const int32_t ninv, unsigned int n) 
-{ 
+void mslc_intt(int32_t *a, const int32_t *omegainv_rev,
+    const int32_t omegainv1n_rev, const int32_t ninv, unsigned int n)
+{
     unsigned int m, h, i, j, j1, j2, k = 1;
     int32_t S, U, V;
     int64_t temp;
@@ -135,8 +135,8 @@ void mslc_intt(int32_t *a, const int32_t *omegainv_rev,
 
 // Two consecutive reductions modulo q
 
-void mslc_two_reduce12289(int32_t *a, unsigned int n) 
-{ 
+void mslc_two_reduce12289(int32_t *a, unsigned int n)
+{
     unsigned int i;
 
     for (i = 0; i < n; i++) {
@@ -148,9 +148,9 @@ void mslc_two_reduce12289(int32_t *a, unsigned int n)
 
 // Component-wise multiplication
 
-void mslc_pmul(const int32_t *a, const int32_t *b, int32_t *c, 
-    unsigned int n) 
-{ 
+void mslc_pmul(const int32_t *a, const int32_t *b, int32_t *c,
+    unsigned int n)
+{
     unsigned int i;
 
     for (i = 0; i < n; i++) {
@@ -162,9 +162,9 @@ void mslc_pmul(const int32_t *a, const int32_t *b, int32_t *c,
 
 // Component-wise multiplication and addition
 
-void mslc_pmuladd(const int32_t *a, const int32_t *b, const int32_t *c, 
+void mslc_pmuladd(const int32_t *a, const int32_t *b, const int32_t *c,
     int32_t *d, unsigned int n)
-{ 
+{
     unsigned int i;
 
     for (i = 0; i < n; i++) {
@@ -176,8 +176,8 @@ void mslc_pmuladd(const int32_t *a, const int32_t *b, const int32_t *c,
 
 // Component-wise multiplication with scalar
 
-void mslc_smul(int32_t *a, int32_t scalar, unsigned int n) 
-{ 
+void mslc_smul(int32_t *a, int32_t scalar, unsigned int n)
+{
     unsigned int i;
 
     for (i = 0; i < n; i++) {
@@ -188,8 +188,8 @@ void mslc_smul(int32_t *a, int32_t scalar, unsigned int n)
 
 // Correction modulo q
 
-void mslc_correction(int32_t *a, int32_t p, unsigned int n) 
-{ 
+void mslc_correction(int32_t *a, int32_t p, unsigned int n)
+{
     unsigned int i;
     int32_t mask;
 
@@ -200,4 +200,3 @@ void mslc_correction(int32_t *a, int32_t p, unsigned int n)
         a[i] += (p & mask);
     }
 }
-

@@ -339,17 +339,28 @@ int crypto_ppk_enc(uint8_t *ct,
       // Ephemeral secret --DO NOT CACHE
       hila5_psi16(t);
       mslc_ntt(t, mslc_psi_rev_ntt1024, HILA5_N);
-      mslc_pmul(a, t, b, HILA5_N);        // b = a * t
+      mslc_pmul(a, t, b, HILA5_N);        // b = A * t
       // 8281 = sqrt(-1) * 2^-10 * 3^-10, 7755 = 2^-10 * 3^-10
       mslc_intt(b, mslc_inv_rev_ntt1024, 8281, 7755, HILA5_N);
       mslc_two_reduce12289(b, HILA5_N);
       mslc_correction(b, HILA5_Q, HILA5_N);
+      printf("server product:\n");
+      for (int i = 0; i < HILA5_N; i++){
+        printf("%d ", b[i]);
+      }
+      printf("\n");
       // Safe bits -- may fail (with about 1% probability);
       memset(z, 0, sizeof(z));        // ct = .. | sel | rec, z = payload
       if (hila5_safebits(ct + HILA5_PACKED14, //
           ct + HILA5_PACKED14 + HILA5_PACKED1, (uint8_t *) z, b) == 0){
+            printf("server z: \n");
+            for (int i = 0; i < 8; i++){
+              printf("%lx ", z[i]);
+            }
+            printf("\n");
           break;
       }
+
   }
   if (i == HILA5_MAX_ITER)            // FAIL: too many repeats
       return -1;
@@ -359,16 +370,17 @@ int crypto_ppk_enc(uint8_t *ct,
   HILA5_ENDIAN_FLIP64(z, 8);
   memcpy(ct + HILA5_PACKED14 + HILA5_PACKED1 + HILA5_PAYLOAD_LEN,
       &z[4], HILA5_ECC_LEN);          // ct = .. | encrypted error cor. code
-      printf("z: \n");
-      for (int i = 0; i < 8; i++){
-        printf("%lx ", z[i]);
-      }
-      printf("\n");
+
   // Construct ciphertext
   hila5_parse(a, pk);                     // Construct ciphertext
   hila5_psi16(e);
   mslc_ntt(e, mslc_psi_rev_ntt1024, HILA5_N);
   mslc_pmuladd(a, t, e, a, HILA5_N);      // mu = NTT(a * t + e)
+  printf(" server mu:\n");
+  for (int i = 0; i < HILA5_N; i++){
+    printf("%x ", a[i]);
+  }
+  printf("\n");
   hila5_parse_xi2(e, pw, strlen(pw));
   mslc_padd(a, e, a, HILA5_N);            // send ct = mu + gamma2
   mslc_correction(a, HILA5_Q, HILA5_N);
@@ -382,7 +394,7 @@ int crypto_ppk_enc(uint8_t *ct,
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
   hila5_sha3_final(ss, &sha3);
-  printf("ss: \n");
+  printf("server ss: \n");
   for (int i = 0; i < HILA5_KEY_LEN; i++){
     printf("%c ", ss[i]);
   }
@@ -409,7 +421,12 @@ int crypto_ppk_dec(uint8_t *ss,
   hila5_unpack14(a, sk);              // unpack secret key
   hila5_unpack14(b, ct);              // get B from ciphertext
   hila5_unpack14(g,sk+2*HILA5_PACKED14); // get gamma2 from secret key
-  mslc_psub(b, b, g, HILA5_N);            // mu = b - gamma2
+  mslc_psub(b, b, g, HILA5_N);            // mu = B - gamma2
+  printf("client mu:\n");
+  for (int i = 0; i < HILA5_N; i++){
+    printf("%x ", b[i]);
+  }
+  printf("\n");
   mslc_pmul(b, a, b, HILA5_N);
   // scaling factors
   // 3651 = sqrt(-1) * 2^-10 * 3^-12
@@ -417,12 +434,22 @@ int crypto_ppk_dec(uint8_t *ss,
   mslc_intt(b, mslc_inv_rev_ntt1024, 3651, 4958, HILA5_N);
   mslc_two_reduce12289(b, HILA5_N);
   mslc_correction(b, HILA5_Q, HILA5_N);
+  printf("client product:\n");
+  for (int i = 0; i < HILA5_N; i++){
+    printf("%d ", b[i]);
+  }
+  printf("\n");
   memset(z, 0x00, sizeof(z));
   if (hila5_select((uint8_t *) z,     // reconciliation
       ct + HILA5_PACKED14,
       ct + HILA5_PACKED14 + HILA5_PACKED1, b))
       return PAKE_INSUFFICIENT_BITS;                      // FAIL: not enough bits
   // error correction -- decrypt with "one time pad" in payload
+  printf("client z: \n");
+  for (int i = 0; i < 8; i++){
+    printf("%lx ", z[i]);
+  }
+  printf("\n");
   for (int i = 0; i < HILA5_ECC_LEN; i++) {
       ((uint8_t *) &z[4])[i] ^=
           ct[HILA5_PACKED14 + HILA5_PACKED1 + HILA5_PAYLOAD_LEN + i];
@@ -432,11 +459,7 @@ int crypto_ppk_dec(uint8_t *ss,
   xe5_fix(z, &z[4]);                  // fix possible errors
   HILA5_ENDIAN_FLIP64(z, 8);
 
-  printf("z: \n");
-  for (int i = 0; i < 8; i++){
-    printf("%lx ", z[i]);
-  }
-  printf("\n");
+
   //compute session key
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);          // final hash
   hila5_sha3_update(&sha3, "HILA5PPKv10", 12);        // version ident

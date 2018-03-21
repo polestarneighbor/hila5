@@ -1,8 +1,8 @@
 // api_p.h
 // 2018-2-17 Hannah Davis <davi2495@umn.edu>
 
-#ifndef _API_P_H_
-#define _API_P_H_
+#ifndef _API_PAKE_H_
+#define _API_PAKE_H_
 
 // Definitions for HILA5 as a PAKE
 
@@ -40,17 +40,4 @@ int crypto_pake_dec(unsigned char *ss, char *auth_C, const char *auth_S,
 int crypto_pake_auth(unsigned char *ss, const char *auth_C,
   const unsigned char *pk, const unsigned char *ct, const unsigned char *authkey);
 
-// Generates a keypair - pk is the public key and sk is the secret key. pw is
-// the password
-int crypto_ppk_keypair(unsigned char *pk, unsigned char *sk, const char *pw);
-
-// Encrypt -- ct is the ciphertext, ss is the session key (which is gibberish
-// unless the other party knows the password)
-int crypto_ppk_enc(unsigned char *ct, unsigned char *ss, const unsigned char *pk,
-   const char *pw);
-
-// Decrypt -- ss is the session key, which will not match the servers' unless the
-// password used to create the public key was correct
-int crypto_ppk_dec(unsigned char *ss, const unsigned char *ct, const unsigned char *pk,
-                    const unsigned char *sk);
 #endif

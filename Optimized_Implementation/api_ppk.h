@@ -1,17 +1,16 @@
 // api_p.h
 // 2018-2-17 Hannah Davis <davi2495@umn.edu>
 
-#ifndef _API_P_H_
-#define _API_P_H_
+#ifndef _API_PPK_H_
+#define _API_PPK_H_
 
 // Definitions for HILA5 as a PAKE
 
-#define CRYPTO_ALGNAME "HILA5_PAKE"
+#define CRYPTO_ALGNAME "HILA5_PPK"
 #define CRYPTO_HASHBYTES 1792
-#define CRYPTO_SECRETKEYBYTES 1824 + CRYPTO_HASHBYTES
-#define CRYPTO_PUBLICKEYBYTES 1824
+#define CRYPTO_SECRETKEYBYTES 3*CRYPTO_HASHBYTES
+#define CRYPTO_PUBLICKEYBYTES CRYPTO_HASHBYTES
 #define CRYPTO_BYTES 32
-#define CRYPTO_AUTHKEYBYTES CRYPTO_HASHBYTES+CRYPTO_BYTES
 #define CRYPTO_CIPHERTEXTBYTES 2012
 // == Prototypes ===========================================================
 

@@ -305,13 +305,11 @@ int crypto_ppk_keypair(uint8_t *pk, uint8_t *sk, const char *pw){
     hila5_parse_xi(e, pw, strlen(pw));      // e now contains gamma1
     mslc_padd(a, a, e, HILA5_N);            // m = A + gamma1
     hila5_pack14(pk + HILA5_SEED_LEN, a);   // pk = seed | m
-
-  2
     mslc_two_reduce12289(s,HILA5_N);
     mslc_correction(s, HILA5_Q, HILA5_N);
     // Pack private key: sk = s | gamma1, gamma2
     hila5_pack14(sk, s);
-    // Both hashes of password is stored with secret key
+    // Both hashes of password are stored with secret key
     hila5_pack14(sk+HILA5_PACKED14, e);
     hila5_parse_xi2(e, pw, strlen(pw));
     hila5_pack14(sk + 2*HILA5_PACKED14, e);
@@ -361,7 +359,11 @@ int crypto_ppk_enc(uint8_t *ct,
   HILA5_ENDIAN_FLIP64(z, 8);
   memcpy(ct + HILA5_PACKED14 + HILA5_PACKED1 + HILA5_PAYLOAD_LEN,
       &z[4], HILA5_ECC_LEN);          // ct = .. | encrypted error cor. code
-
+      printf("z: \n");
+      for (int i = 0; i < 8; i++){
+        printf("%lx ", z[i]);
+      }
+      printf("\n");
   // Construct ciphertext
   hila5_parse(a, pk);                     // Construct ciphertext
   hila5_psi16(e);
@@ -374,12 +376,17 @@ int crypto_ppk_enc(uint8_t *ct,
 
   //compute session key
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);
+  hila5_sha3_update(&sha3, "HILA5PPKv10", 12);        // version ident
   hila5_sha3_update(&sha3, "ORACLE3",7);
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
-  hila5_sha3_update(&sha3, g, HILA5_PACKED14);
   hila5_sha3_final(ss, &sha3);
+  printf("ss: \n");
+  for (int i = 0; i < HILA5_KEY_LEN; i++){
+    printf("%c ", ss[i]);
+  }
+  hila5_sha3_update(&sha3, g, HILA5_PACKED14);
 
 
   // clear sensitive data
@@ -425,16 +432,24 @@ int crypto_ppk_dec(uint8_t *ss,
   xe5_fix(z, &z[4]);                  // fix possible errors
   HILA5_ENDIAN_FLIP64(z, 8);
 
+  printf("z: \n");
+  for (int i = 0; i < 8; i++){
+    printf("%lx ", z[i]);
+  }
+  printf("\n");
   //compute session key
   hila5_sha3_init(&sha3, HILA5_KEY_LEN);          // final hash
-  hila5_sha3_update(&sha3, "HILA5PAKEv10", 12);        // version ident
+  hila5_sha3_update(&sha3, "HILA5PPKv10", 12);        // version ident
   hila5_sha3_update(&sha3, "ORACLE3", 7);
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
-  hila5_sha3_update(&sha3, sk+HILA5_PACKED14, HILA5_PACKED14);
   hila5_sha3_final(ss, &sha3);                    // hash out to ss
-
+  printf("ss: \n");
+  for (int i = 0; i < HILA5_KEY_LEN; i++){
+    printf("%c ", ss[i]);
+  }
+  hila5_sha3_update(&sha3, sk+HILA5_PACKED14, HILA5_PACKED14);
 
   //clear sensitive data
   hila5_sha3_init(&sha3, 0);

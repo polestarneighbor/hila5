@@ -4,21 +4,21 @@
 
 BIN	= genkat_opt
 OBJS	= kem.o hila5_sha3_opt.o ms_ntt.o ms_ntt_const.o pake.o \
-	../KAT/src/rng.o ../KAT/src/PQCgenKAT_pake.o
-
+	../KAT/src/rng.o
+PAKE = ../KAT/src/PQCgenKAT_pake.o
+PPK = ../KAT/src/PQCgenKAT_ppk.o
 CC	?= gcc
 CFLAGS	+= -std=c99 -Wall -Ofast -I.
 LDLIBS	+= -lcrypto
 LDFLAGS	+= -L/usr/local/opt/openssl/lib
 
-$(BIN): $(OBJS)
-	$(CC) $(LDFLAGS) -o $(BIN) $(OBJS) $(LDLIBS)
+$(BIN): $(OBJS) $(PAKE) $(PPK)
+	$(CC) $(LDFLAGS) -o $(BIN)_pake $(OBJS) $(PAKE) $(LDLIBS)
+	$(CC) $(LDFLAGS) -o $(BIN)_ppk $(OBJS) $(PPK) $(LDLIBS)
 
 test:	$(BIN)
-	./$(BIN) password password
-	@echo "== BEGIN KAT DIFFERENCE =="
-	@diff PQCkemKAT_1824.rsp ../KAT/PQCkemKAT_1824.rsp
-	@echo "== END KAT DIFFERENCE =="
+	./$(BIN)_pake password password
+	./$(BIN)_ppk password password > info
 
 .c.o:
 	$(CC) $(CFLAGS) $(INCS) -c $< -o $@

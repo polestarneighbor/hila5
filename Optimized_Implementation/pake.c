@@ -303,6 +303,8 @@ int crypto_ppk_keypair(uint8_t *pk, uint8_t *sk, const char *pw){
     mslc_correction(a, HILA5_Q, HILA5_N);
     //hash password and add to A
     hila5_parse_xi(e, pw, strlen(pw));      // e now contains gamma1
+    mslc_two_reduce12289(e,HILA5_N);
+    mslc_correction(e, HILA5_Q, HILA5_N);
     mslc_padd(a, a, e, HILA5_N);            // m = A + gamma1
     hila5_pack14(pk + HILA5_SEED_LEN, a);   // pk = seed | m
     mslc_two_reduce12289(s,HILA5_N);
@@ -312,8 +314,10 @@ int crypto_ppk_keypair(uint8_t *pk, uint8_t *sk, const char *pw){
     // Both hashes of password are stored with secret key
     hila5_pack14(sk+HILA5_PACKED14, e);
     hila5_parse_xi2(e, pw, strlen(pw));
+    mslc_two_reduce12289(e,HILA5_N);
+    mslc_correction(e, HILA5_Q, HILA5_N);
     hila5_pack14(sk + 2*HILA5_PACKED14, e);
-    // Try to clear out sensitive data
+      // Try to clear out sensitive data
     memset(s, 0x00, sizeof(s));
     memset(e, 0x00, sizeof(e));
     memset(a, 0x00, sizeof(a));
@@ -328,13 +332,18 @@ int crypto_ppk_enc(uint8_t *ct,
                    const char *pw){
   int i;
   int32_t a[HILA5_N], b[HILA5_N], e[HILA5_N], t[HILA5_N], g[HILA5_N];
+  uint8_t g1[HILA5_PACKED14];
   uint64_t z[8];
   hila5_sha3_ctx_t sha3;
 
   // Get m
   hila5_unpack14(a, pk + HILA5_SEED_LEN);
   hila5_parse_xi(g, pw, strlen(pw));   // compute gamma1
+  mslc_two_reduce12289(g,HILA5_N);
+  mslc_correction(g, HILA5_Q, HILA5_N);
+  hila5_pack14(g1,g);
   mslc_psub(a, a, g, HILA5_N);         // decode A = m-gamma1
+
   for (i = 0; i < HILA5_MAX_ITER; i++) {
       // Ephemeral secret --DO NOT CACHE
       hila5_psi16(t);
@@ -344,20 +353,10 @@ int crypto_ppk_enc(uint8_t *ct,
       mslc_intt(b, mslc_inv_rev_ntt1024, 8281, 7755, HILA5_N);
       mslc_two_reduce12289(b, HILA5_N);
       mslc_correction(b, HILA5_Q, HILA5_N);
-      printf("server product:\n");
-      for (int i = 0; i < HILA5_N; i++){
-        printf("%d ", b[i]);
-      }
-      printf("\n");
       // Safe bits -- may fail (with about 1% probability);
       memset(z, 0, sizeof(z));        // ct = .. | sel | rec, z = payload
       if (hila5_safebits(ct + HILA5_PACKED14, //
           ct + HILA5_PACKED14 + HILA5_PACKED1, (uint8_t *) z, b) == 0){
-            printf("server z: \n");
-            for (int i = 0; i < 8; i++){
-              printf("%lx ", z[i]);
-            }
-            printf("\n");
           break;
       }
 
@@ -376,12 +375,9 @@ int crypto_ppk_enc(uint8_t *ct,
   hila5_psi16(e);
   mslc_ntt(e, mslc_psi_rev_ntt1024, HILA5_N);
   mslc_pmuladd(a, t, e, a, HILA5_N);      // mu = NTT(a * t + e)
-  printf(" server mu:\n");
-  for (int i = 0; i < HILA5_N; i++){
-    printf("%x ", a[i]);
-  }
-  printf("\n");
   hila5_parse_xi2(e, pw, strlen(pw));
+  mslc_two_reduce12289(e,HILA5_N);
+  mslc_correction(e, HILA5_Q, HILA5_N);
   mslc_padd(a, e, a, HILA5_N);            // send ct = mu + gamma2
   mslc_correction(a, HILA5_Q, HILA5_N);
   hila5_pack14(ct, a);                    // public value in ct
@@ -393,13 +389,8 @@ int crypto_ppk_enc(uint8_t *ct,
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
+  hila5_sha3_update(&sha3, g1, HILA5_PACKED14); // gamma1
   hila5_sha3_final(ss, &sha3);
-  printf("server ss: \n");
-  for (int i = 0; i < HILA5_KEY_LEN; i++){
-    printf("%c ", ss[i]);
-  }
-  hila5_sha3_update(&sha3, g, HILA5_PACKED14);
-
 
   // clear sensitive data
   hila5_sha3_init(&sha3, 0);
@@ -422,11 +413,6 @@ int crypto_ppk_dec(uint8_t *ss,
   hila5_unpack14(b, ct);              // get B from ciphertext
   hila5_unpack14(g,sk+2*HILA5_PACKED14); // get gamma2 from secret key
   mslc_psub(b, b, g, HILA5_N);            // mu = B - gamma2
-  printf("client mu:\n");
-  for (int i = 0; i < HILA5_N; i++){
-    printf("%x ", b[i]);
-  }
-  printf("\n");
   mslc_pmul(b, a, b, HILA5_N);
   // scaling factors
   // 3651 = sqrt(-1) * 2^-10 * 3^-12
@@ -434,22 +420,12 @@ int crypto_ppk_dec(uint8_t *ss,
   mslc_intt(b, mslc_inv_rev_ntt1024, 3651, 4958, HILA5_N);
   mslc_two_reduce12289(b, HILA5_N);
   mslc_correction(b, HILA5_Q, HILA5_N);
-  printf("client product:\n");
-  for (int i = 0; i < HILA5_N; i++){
-    printf("%d ", b[i]);
-  }
-  printf("\n");
   memset(z, 0x00, sizeof(z));
   if (hila5_select((uint8_t *) z,     // reconciliation
       ct + HILA5_PACKED14,
       ct + HILA5_PACKED14 + HILA5_PACKED1, b))
       return PAKE_INSUFFICIENT_BITS;                      // FAIL: not enough bits
   // error correction -- decrypt with "one time pad" in payload
-  printf("client z: \n");
-  for (int i = 0; i < 8; i++){
-    printf("%lx ", z[i]);
-  }
-  printf("\n");
   for (int i = 0; i < HILA5_ECC_LEN; i++) {
       ((uint8_t *) &z[4])[i] ^=
           ct[HILA5_PACKED14 + HILA5_PACKED1 + HILA5_PAYLOAD_LEN + i];
@@ -467,13 +443,8 @@ int crypto_ppk_dec(uint8_t *ss,
   hila5_sha3_update(&sha3, pk+HILA5_SEED_LEN, HILA5_PACKED14);
   hila5_sha3_update(&sha3, ct, HILA5_PACKED14);
   hila5_sha3_update(&sha3, z, HILA5_KEY_LEN);     // actual shared secret z
+  hila5_sha3_update(&sha3, sk+HILA5_PACKED14, HILA5_PACKED14); //gamma1
   hila5_sha3_final(ss, &sha3);                    // hash out to ss
-  printf("ss: \n");
-  for (int i = 0; i < HILA5_KEY_LEN; i++){
-    printf("%c ", ss[i]);
-  }
-  hila5_sha3_update(&sha3, sk+HILA5_PACKED14, HILA5_PACKED14);
-
   //clear sensitive data
   hila5_sha3_init(&sha3, 0);
   memset(b, 0x00, sizeof(b));

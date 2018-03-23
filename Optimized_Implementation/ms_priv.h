@@ -16,7 +16,7 @@
 #define MS_PRIV_H
 
 #include <stdint.h>
-
+#include <stdio.h>
 // NTT tables
 
 extern const int32_t mslc_psi_rev_ntt1024[1024];
@@ -30,7 +30,7 @@ void mslc_ntt(int32_t *a, const int32_t *psi_rev, unsigned int n);
 // Inverse NTT
 void mslc_intt(int32_t *a, const int32_t *omegainv_rev,
     const int32_t omegainv1N_rev, const int32_t Ninv, unsigned int n);
-    
+
 int32_t mslc_reduce12289(int64_t a);
 // Two consecutive reductions modulo q
 void mslc_two_reduce12289(int32_t *a, unsigned int n);
@@ -45,6 +45,9 @@ void mslc_pmul(const int32_t *a, const int32_t *b, int32_t *c,
 // Component-wise multiplication and addition
 void mslc_pmuladd(const int32_t *a, const int32_t *b, const int32_t *c,
     int32_t *d, unsigned int n);
+// Component-wise addition
+void mslc_padd(const int32_t *a, const int32_t *c, int32_t *d, unsigned int n);
+void mslc_psub( int32_t *c, const int32_t *a, const int32_t *b, unsigned int n);
 
 // Component-wise multiplication with scalar
 void mslc_smul(int32_t *a, int32_t scalar, unsigned int n);

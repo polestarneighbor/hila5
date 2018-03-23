@@ -13,16 +13,15 @@
 *****************************************************************************/
 
 #include "ms_priv.h"
-
 // Reduction modulo q
 
 int32_t mslc_reduce12289(int64_t a)
-{ 
+{
+
     int32_t c0, c1;
 
     c0 = (int32_t)(a & 0xFFF);
     c1 = (int32_t)(a >> 12);
-
     return (3 * c0 - c1);
 }
 
@@ -173,6 +172,29 @@ void mslc_pmuladd(const int32_t *a, const int32_t *b, const int32_t *c,
     }
 }
 
+void mslc_padd(const int32_t *a, const int32_t *c, int32_t *d, unsigned int n)
+{
+  unsigned int i;
+
+  for (i = 0; i < n; i++) {
+    int m = a[i];
+    int n = c[i];
+      d[i] = (m+n) % 12289;
+      int32_t x  = (mslc_reduce12289((int64_t) mslc_reduce12289((int64_t) m + n)));
+      printf("a[%d] = %d, c[%d] = %d, a[i] + c[i] = %d, a[i] + c[i] mod 12289 = %d, d[i] = %d, x =%d\n",i ,m,i, n, m+n, (m + n) %12289, d[i], x);
+  }
+}
+
+
+// Component-wise subtraction
+
+void mslc_psub( int32_t *c, const int32_t *a, const int32_t *b, unsigned int n)
+{
+    unsigned int i;
+    for (i = 0; i < n; i++) {
+        c[i] = (a[i] - b[i]+5*12289)%12289;
+    }
+}
 
 // Component-wise multiplication with scalar
 

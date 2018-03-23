@@ -29,6 +29,7 @@ static void hila5_parse_xi(int32_t v[HILA5_N],
     uint32_t x;                          // random variable
 
     hila5_shake256_init(&sha3);         // initialize the context
+    hila5_shake_update(&sha3, "ORACLE1",7);
     hila5_shake_update(&sha3, seed, seed_len);    // seed input
     hila5_shake_xof(&sha3);             // pad context to output mode
 
@@ -63,26 +64,12 @@ static void hila5_parse_xi2(int32_t v[HILA5_N],
         v[i] = x;                       // reduction (mod q) unnecessary
     }
 }
-// Component-wise addition
 
-void mslc_padd( int32_t *c,const int32_t *a, const int32_t *b, unsigned int n)
+
+int crypto_pake_keypair(uint8_t *pk,
+   uint8_t *sk,
+   const char *pw)
 {
-    unsigned int i;
-    for (i = 0; i < n; i++) {
-        c[i] = (a[i] + b[i]) % HILA5_Q;
-    }
-}
-// Component-wise subtraction
-
-void mslc_psub( int32_t *c, const int32_t *a, const int32_t *b, unsigned int n)
-{
-    unsigned int i;
-    for (i = 0; i < n; i++) {
-        c[i] = (a[i] - b[i]+5*HILA5_Q)%HILA5_Q;
-    }
-}
-
-int crypto_pake_keypair(uint8_t *pk, uint8_t *sk, const char *pw){
     int32_t s[HILA5_N], e[HILA5_N], a[HILA5_N];
 
 
@@ -95,12 +82,11 @@ int crypto_pake_keypair(uint8_t *pk, uint8_t *sk, const char *pw){
     mslc_ntt(e, mslc_psi_rev_ntt1024, HILA5_N);
     randombytes(pk, HILA5_SEED_LEN);        // Random seed for t
     hila5_parse(a, pk);                     // a = Parse(seed);
-
     mslc_pmuladd(a, s, e, a, HILA5_N);      // A = NTT(a * s + e)
     mslc_correction(a, HILA5_Q, HILA5_N);
     //hash password and add to A
     hila5_parse_xi(e, pw, strlen(pw));      // e now contains gamma
-    mslc_padd(a, a, e, HILA5_N);            // m = A + gamma
+    mslc_padd(a, e, a, HILA5_N);            // m = A + gamma
     hila5_pack14(pk + HILA5_SEED_LEN, a);   // pk = seed | m
 
     // Pack private key: sk = s | gamma
@@ -305,7 +291,7 @@ int crypto_ppk_keypair(uint8_t *pk, uint8_t *sk, const char *pw){
     hila5_parse_xi(e, pw, strlen(pw));      // e now contains gamma1
     mslc_two_reduce12289(e,HILA5_N);
     mslc_correction(e, HILA5_Q, HILA5_N);
-    mslc_padd(a, a, e, HILA5_N);            // m = A + gamma1
+    mslc_padd(a, e, a, HILA5_N);            // m = A + gamma1
     hila5_pack14(pk + HILA5_SEED_LEN, a);   // pk = seed | m
     mslc_two_reduce12289(s,HILA5_N);
     mslc_correction(s, HILA5_Q, HILA5_N);

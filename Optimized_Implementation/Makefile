@@ -16,7 +16,7 @@ $(BIN): $(OBJS) $(PAKE) $(PPK)
 	$(CC) $(LDFLAGS) -o $(BIN)_ppk $(OBJS) $(PPK) $(LDLIBS)
 
 test:	$(BIN)
-	./$(BIN)_pake password password
+	./$(BIN)_pake password password | less 
 	./$(BIN)_ppk password password
 
 .c.o:

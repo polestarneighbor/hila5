@@ -95,7 +95,6 @@ main(int argc, char *argv[])
             printf("crypto_ppk_keypair returned <%d>\n", ret_val);
             return KAT_CRYPTO_FAILURE;
         }
-        printf("keypair returned\n");
         fprintBstr(fp_rsp, "pk = ", pk, CRYPTO_PUBLICKEYBYTES);
         fprintBstr(fp_rsp, "sk = ", sk, CRYPTO_SECRETKEYBYTES);
 
@@ -103,7 +102,6 @@ main(int argc, char *argv[])
             printf("crypto_ppk_enc returned <%d>\n", ret_val);
             return KAT_CRYPTO_FAILURE;
         }
-        printf("enc returned\n");
         fprintBstr(fp_rsp, "ct = ", ct, CRYPTO_CIPHERTEXTBYTES);
         fprintBstr(fp_rsp, "ss = ", ss, CRYPTO_BYTES);
 
@@ -113,7 +111,6 @@ main(int argc, char *argv[])
             printf("crypto_ppk_dec returned <%d>\n", ret_val);
             return KAT_CRYPTO_FAILURE;
         }
-        printf("dec returned\n");
         fprintBstr(fp_rsp, "ss1 = ", ss1, CRYPTO_BYTES);
 
         if ( memcmp(ss, ss1, CRYPTO_BYTES) ) {
